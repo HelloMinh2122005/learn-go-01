@@ -1,6 +1,6 @@
 package responses
 
 type BaseResponse struct {
-	Status  int    `json:"status"`
-	Message string `json:"message"`
+	Status  int    `json:"Status"`
+	Message string `json:"Message"`
 }
