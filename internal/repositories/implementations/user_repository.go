@@ -1,96 +1,25 @@
 package repositories
 
 import (
-	"errors"
 	"time"
 
+	"context"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"minh.com/go-rest-gin-3/internal/models"
 )
 
 type UserRepository struct {
-	users  []*models.User
-	nextID int
+	collections *mongo.Collection
 }
 
 // Constructor
-func NewUserRepository() *UserRepository {
+func NewUserRepository(collections *mongo.Collection) *UserRepository {
 	return &UserRepository{
-		users:  make([]*models.User, 0),
-		nextID: 1,
+		collections: collections,
 	}
-}
-
-func (r *UserRepository) SeedDummyData() error {
-	dummyUsers := []*models.User{
-		{
-			FirstName: "John",
-			LastName:  "Doe",
-			Email:     "john.doe@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Jane",
-			LastName:  "Smith",
-			Email:     "jane.smith@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Alice",
-			LastName:  "Johnson",
-			Email:     "alice.johnson@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Bob",
-			LastName:  "Williams",
-			Email:     "bob.williams@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Charlie",
-			LastName:  "Brown",
-			Email:     "charlie.brown@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Diana",
-			LastName:  "Davis",
-			Email:     "diana.davis@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Eve",
-			LastName:  "Miller",
-			Email:     "eve.miller@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Frank",
-			LastName:  "Wilson",
-			Email:     "frank.wilson@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Grace",
-			LastName:  "Moore",
-			Email:     "grace.moore@example.com",
-			Password:  "password123",
-		},
-		{
-			FirstName: "Henry",
-			LastName:  "Taylor",
-			Email:     "henry.taylor@example.com",
-			Password:  "password123",
-		},
-	}
-
-	for _, user := range dummyUsers {
-		if _, err := r.CreateUser(user); err != nil {
-			return err // Return error if any creation fails
-		}
-	}
-
-	return nil
 }
 
 /*
@@ -99,56 +28,79 @@ r: Tên biến receiver (có thể đặt tên bất kỳ, thường là chữ c
 *UserRepository: Kiểu receiver - là pointer đến struct UserRepository
 Ý nghĩa: Method này "thuộc về" struct UserRepository
 */
-func (r *UserRepository) CreateUser(user *models.User) (*models.User, error) {
-	if user == nil {
-		return nil, errors.New("user can not be nil")
+func (r *UserRepository) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
+	now := time.Now()
+	user.CreatedAt = now
+	user.UpdatedAt = now
+
+	res, err := r.collections.InsertOne(ctx, user)
+	if err != nil {
+		return nil, err
 	}
 
-	user.ID = r.nextID
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
-
-	r.nextID++
-	r.users = append(r.users, user)
+	user.ID = res.InsertedID.(primitive.ObjectID)
 
 	return user, nil
 }
 
-func (r *UserRepository) GetUserByID(id int) (*models.User, error) {
-	for _, user := range r.users {
-		if user.ID == id {
-			return user, nil
-		}
+func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("no user found")
+	var user models.User
+	err = r.collections.FindOne(ctx, bson.M{"_id": objID}).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
-func (r *UserRepository) GetAllUsers() ([]*models.User, error) {
-	return r.users, nil
-}
+func (r *UserRepository) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	var users []*models.User
+	cursor, err := r.collections.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
 
-func (r *UserRepository) UpdateUser(id int, updated_user *models.User) (*models.User, error) {
-	for _, user := range r.users {
-		if user.ID == id {
-			user.Email = updated_user.Email
-			user.FirstName = updated_user.FirstName
-			user.LastName = updated_user.LastName
-			user.UpdatedAt = time.Now()
-			return user, nil
+	for cursor.Next(ctx) {
+		var user models.User
+		if err := cursor.Decode(&user); err != nil {
+			return nil, err
 		}
+		users = append(users, &user)
 	}
 
-	return nil, errors.New("no user found")
-}
-
-func (r *UserRepository) DeleteUser(id int) error {
-	for i, user := range r.users {
-		if user.ID == id {
-			r.users = append(r.users[:i], r.users[i+1:]...)
-			return nil
-		}
+	if err := cursor.Err(); err != nil {
+		return nil, err
 	}
 
-	return errors.New("no user found")
+	return users, nil
+}
+
+func (r *UserRepository) UpdateUser(ctx context.Context, id string, updated_user *models.User) (*models.User, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	updated_user.UpdatedAt = time.Now()
+	_, err = r.collections.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": updated_user})
+	if err != nil {
+		return nil, err
+	}
+
+	return updated_user, nil
+}
+
+func (r *UserRepository) DeleteUser(ctx context.Context, id string) error {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.collections.DeleteOne(ctx, bson.M{"_id": objID})
+	return err
 }

@@ -25,7 +25,7 @@ definitions:
       FirstName:
         type: string
       ID:
-        type: integer
+        type: string
       LastName:
         type: string
       UpdatedAt:
@@ -109,7 +109,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:

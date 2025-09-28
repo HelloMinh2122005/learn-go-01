@@ -1,6 +1,7 @@
 package mappers
 
 import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	requests "minh.com/go-rest-gin-3/internal/handlers/dtos/requests"
 	base "minh.com/go-rest-gin-3/internal/handlers/dtos/responses"
 	responses "minh.com/go-rest-gin-3/internal/handlers/dtos/responses/user"
@@ -10,7 +11,6 @@ import (
 func CreateRequestToEntity(req *requests.CreateUserRequest) *models.User {
 	// TODO: Validate fields and hash pashword
 	return &models.User{
-		ID:        0,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Email:     req.Email,
@@ -19,8 +19,12 @@ func CreateRequestToEntity(req *requests.CreateUserRequest) *models.User {
 }
 
 func UpdateRequestToEntity(req *requests.UpdateUserRequest) *models.User {
+	objID, err := primitive.ObjectIDFromHex(req.ID)
+	if err != nil {
+		return nil
+	}
 	return &models.User{
-		ID:        req.ID,
+		ID:        objID,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Email:     req.Email,
@@ -30,7 +34,7 @@ func UpdateRequestToEntity(req *requests.UpdateUserRequest) *models.User {
 func EntityToResponse(user *models.User) *responses.UserResponse {
 	return &responses.UserResponse{
 		BaseDataResponse: base.BaseDataResponse{
-			ID:        user.ID,
+			ID:        user.ID.Hex(),
 			CreatedAt: user.CreatedAt.String(),
 			UpdatedAt: user.UpdatedAt.String(),
 		},

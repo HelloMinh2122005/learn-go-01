@@ -1,6 +1,8 @@
 package services
 
 import (
+	"context"
+
 	"minh.com/go-rest-gin-3/internal/models"
 	repositories "minh.com/go-rest-gin-3/internal/repositories/interfaces"
 )
@@ -16,22 +18,22 @@ func NewUserService(userRepository repositories.UserRepository) *UserService {
 	}
 }
 
-func (s *UserService) CreateUser(user *models.User) (*models.User, error) {
-	return s.userRepository.CreateUser(user)
+func (s *UserService) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
+	return s.userRepository.CreateUser(ctx, user)
 }
 
-func (s *UserService) GetUserByID(id int) (*models.User, error) {
-	return s.userRepository.GetUserByID(id)
+func (s *UserService) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	return s.userRepository.GetUserByID(ctx, id)
 }
 
-func (s *UserService) GetAllUsers() ([]*models.User, error) {
-	return s.userRepository.GetAllUsers()
+func (s *UserService) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	return s.userRepository.GetAllUsers(ctx)
 }
 
-func (s *UserService) UpdateUser(id int, user *models.User) (*models.User, error) {
-	return s.userRepository.UpdateUser(id, user)
+func (s *UserService) UpdateUser(ctx context.Context, id string, user *models.User) (*models.User, error) {
+	return s.userRepository.UpdateUser(ctx, id, user)
 }
 
-func (s *UserService) DeleteUser(id int) error {
-	return s.userRepository.DeleteUser(id)
+func (s *UserService) DeleteUser(ctx context.Context, id string) error {
+	return s.userRepository.DeleteUser(ctx, id)
 }

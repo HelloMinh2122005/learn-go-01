@@ -1,8 +1,6 @@
 package http
 
 import (
-	"strconv"
-
 	gin "github.com/gin-gonic/gin"
 	requests "minh.com/go-rest-gin-3/internal/handlers/dtos/requests"
 	factories "minh.com/go-rest-gin-3/internal/handlers/factories"
@@ -42,7 +40,7 @@ func (uh *UserHandler) CreateUser(c *gin.Context) {
 
 	userEntity := mapper.CreateRequestToEntity(&req)
 
-	newUser, err := uh.userService.CreateUser(userEntity)
+	newUser, err := uh.userService.CreateUser(c.Request.Context(), userEntity)
 	if err != nil {
 		factories.InternalServerError(c, err)
 		return
@@ -61,20 +59,20 @@ func (uh *UserHandler) CreateUser(c *gin.Context) {
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param id path int true "User ID"
+// @Param id path string true "User ID"
 // @Success 200 {object} user.UserResponse "User retrieved successfully"
 // @Failure 400 {object} map[string]interface{} "Bad Request"
 // @Failure 404 {object} map[string]interface{} "Not Found"
 // @Failure 500 {object} map[string]interface{} "Internal Server Error"
 // @Router /users/{id} [get]
 func (uh *UserHandler) GetUserByID(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil || id <= 0 {
+	id := c.Param("id")
+	if id == "" {
 		factories.BadRequest(c, "Invalid user ID")
 		return
 	}
 
-	user, err := uh.userService.GetUserByID(id)
+	user, err := uh.userService.GetUserByID(c.Request.Context(), id)
 	if err != nil {
 		factories.NotFound(c, "User")
 		return
@@ -97,7 +95,7 @@ func (uh *UserHandler) GetUserByID(c *gin.Context) {
 // @Failure 500 {object} map[string]interface{} "Internal Server Error"
 // @Router /users [get]
 func (uh *UserHandler) GetAllUsers(c *gin.Context) {
-	users, err := uh.userService.GetAllUsers()
+	users, err := uh.userService.GetAllUsers(c.Request.Context())
 	if err != nil {
 		factories.InternalServerError(c, err)
 		return

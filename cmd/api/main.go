@@ -1,16 +1,22 @@
 package main
 
 import (
-	http "minh.com/go-rest-gin-3/internal/handlers/http"
-	repositories "minh.com/go-rest-gin-3/internal/repositories/implementations"
-	routes "minh.com/go-rest-gin-3/internal/routes"
-	services "minh.com/go-rest-gin-3/internal/services/implementations"
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
-	gin "github.com/gin-gonic/gin"
-
+	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "minh.com/go-rest-gin-3/docs" // Import to embed Swagger docs
+
+	_ "minh.com/go-rest-gin-3/docs" // This is important for swagger docs
+	"minh.com/go-rest-gin-3/internal/configs"
+	"minh.com/go-rest-gin-3/internal/handlers/http"
+	repositories "minh.com/go-rest-gin-3/internal/repositories/implementations"
+	"minh.com/go-rest-gin-3/internal/routes"
+	services "minh.com/go-rest-gin-3/internal/services/implementations"
 )
 
 // @title test API
@@ -27,9 +33,38 @@ import (
 
 // @host localhost:8089
 func main() {
-	userRepo := repositories.NewUserRepository()
-	// TODO: delete this shit
-	userRepo.SeedDummyData()
+
+	// 1. tạo ctx và cancel function: -> đảm bảo hủy context, connection đóng khi main kết thúc
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Bắt signal để graceful shutdown
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+		<-quit
+		cancel()
+	}()
+
+	// Khởi tạo MongoDB
+	mongoDbConfig := configs.MongoConfig{
+		URI:        "mongodb://localhost:27017",
+		DBName:     "MongoDB",
+		TimeoutSec: 10,
+	}
+
+	mongoClient, err := configs.NewMongo(ctx, mongoDbConfig)
+	if err != nil {
+		log.Fatalf("failed to connect to mongo: %v", err)
+	}
+
+	defer func() {
+		if err := mongoClient.Close(ctx); err != nil {
+			log.Printf("error closing mongo: %v", err)
+		}
+	}()
+
+	userRepo := repositories.NewUserRepository(mongoClient.DB.Collection("users"))
 	userService := services.NewUserService(userRepo)
 	userHandler := http.NewUserHandler(userService)
 
@@ -45,5 +80,17 @@ func main() {
 	))
 
 	// Chạy server
-	router.Run(":8089")
+	srvErr := make(chan error)
+	go func() {
+		if err := router.Run(":8089"); err != nil {
+			srvErr <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Println("Shutting down server.")
+	case err := <-srvErr:
+		log.Fatalf("server error: %v", err)
+	}
 }

@@ -118,7 +118,7 @@ const docTemplate = `{
                 "summary": "Get a user by ID",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "User ID",
                         "name": "id",
                         "in": "path",
@@ -195,7 +195,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ID": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "LastName": {
                     "type": "string"
